@@ -184,7 +184,7 @@ Confustion Matrix:
 Ad_Actual     |           25 |               10  |
 Non-AD_Actual |            1 |              199  |
 
-## PCA and Logistic Regression Results discussion
+#### PCA and Logistic Regression Results discussion
 
 While running PCA and Logistic Regression using gridsearch for finding the best parameters took a bit of time, the results are pretty good. Running PCA reduces the dimensinality of the data to 160 features which is not surprising given the exploratory analysis which showed many highly correlated features and features with practically all 0's. 
 
@@ -197,6 +197,7 @@ Next, I am interested in running Logistic Regression using L1 penalty to reduce 
 Regularized Logistic Regression is a technique used for classification problems when there are many features in the data. L1 regularized logistic regression can be used for feature selection because it has the property that it can push feature coefficients to 0. Mathematically, this is due to the L1 norm penalty constraint that it imposes on the function.
 
 When compared to Ridge Regression which used L2 penalty, we can see that graphically from ESL (Hastie, Tibshirani, Friedman):
+
 ![ESL](/images/ESL.png)
 
 ```python
@@ -242,3 +243,41 @@ The score for logistic regression using L1 penalty is close to 98%, so it is bet
 The model does feature selection by shrinking coefficients down to 0 for features that dont explain the data well. When looking at the features with highest coefficients sorted in decreasing order, we can see that 'ancurl news' is at the top along with 'alt information'.
 
 Lasty, I want to explore feature importance using a Random Forest Classifier in order to compare features importances and scores.
+
+```python
+'''
+FEATURE IMPORTANCE USING Random Forest Classifier
+'''
+# split data into training and test sets
+X_train, X_test, y_train, y_test = cross_validation.train_test_split(X, y, test_size=0.10, random_state=3)
+
+# Random Forest Classifer
+rf = RandomForestClassifier(n_estimators = 1500)
+rf.fit(X_train, y_train)
+print "Random Forest classifier score on training set", rf.score(X_train, y_train)
+rf_predicted = rf.predict(X_test)
+print "Random Forest classifier score on test set", rf.score(X_test, y_test)
+```
+
+Classification Report:
+
+| Class   | Precision | Recall | F1-Score |
+| --------|-----------|--------|----------|
+| Ad      |   0.97    |  0.83  |  0.90    |
+| Non-Ad  |   0.97    |  0.99  |  0.98    |
+|avg/total|   0.97    |  0.97  |  0.97    |   
+
+
+Confustion Matrix:
+
+|             | Ad_Predicted |  Non-AD_Predicted |
+|-------------|--------------|-------------------|
+Ad_Actual     |     30       |           6       |
+Non-AD_Actual |      1       |          198      |
+
+#### Random Forest Classifier Results discussion
+
+The performance of the Random Forest Classifier is not as good as that of Logistic Resgression using L1 penalty (98% vs. 97%) but it is very close to that of PCA + Logistic Regression. The top features (based on importance) are not the same as those with the highest coefficients which makes sense given that one is optimizing based on feature impurity while the other is not.
+
+#### Final thoughts
+In conclusion, I went through a few algorithms to predict if an image will be an advertisement or not based on its attributes, and all of these predicted with over 90% accuracy on the test set. If I had to chose, I would implement Logistic Regression with L1 penalty because it scored the highest and reduced the dimensionality in the dataset which is important when dealing with so many features. However, I also think the Random Forest model also performed very well and did not need much tuning, so it could also be implemented.
