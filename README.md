@@ -3,7 +3,7 @@
 ### Project Overview
 This purpose for this repository is for a machine learning project to predict whether an image is an advertisment ("ad") or not ("non ad"). 
 
-## Data Pre-processing
+#### Data Pre-processing
 Two data files had to be combined and read:
 
 ```python
@@ -23,7 +23,7 @@ Some facts about the data:
 * Class Distribution - number of instances per class: 2,821 non ads, 458 ads.
 * height, width and aratio are the only continuous variables
 
-## Data Cleaning
+#### Data Cleaning
 ```python
 vars_cont = ['height','width','aratio']
 '''
@@ -46,7 +46,7 @@ dat.loc[dat.local == '1','local'] = dat[dat.local == '1'].local.astype(np.int64)
 dat.loc[dat.local == '0','local'] = dat[dat.local == '0'].local.astype(np.int64)
 ```
 
-## Data Exploration
+#### Data Exploration
 In doing some data exploration, we can see that there are indeed more Non-Ads than Ads, and that some of the continuous variables need to be scaled.
 
 ```python
@@ -99,7 +99,7 @@ dat.plot.scatter(x = var[1], y = var[2],ax=axes[1], title = 'Width vs Aratio - l
 After scaling continuous features and removing outliers:
 ![boxplots_2](/images/boxplots_2.png)
 
-## Correlation
+#### Correlation
 After doing some exploratory analysis, it looks like some of the features are correlated with one another, and there is 
 some correlation among the three continuous variables.
 
@@ -124,10 +124,121 @@ sns.heatmap(corr_4, vmax=.9, square=True, ax=axes[1][1]);
 ![corr](/images/corr.png)
 
 
-## Exploratory Summary
+#### Exploratory Summary
 
 After doing some exploratory analysis, it is clear that there is are more Non-Ads than Ads in the dataset (84% vs 16%). There are many features in the data, and it looks like a lot of them have majority value equal to 0, so I think that these may not add much information to the data. 
 
 Also, there are many features that are highly correlated in the dataset. Since there are so many features in the data, next I will explore PCA to reduce dimensionality and penalized logistic regression. As a last step, I want to also explore random forests since they have embedded feature importance based on Gini impurity/ information gain.
 
-## PCA and Logistic Regression
+#### PCA and Logistic Regression
+Principal Components Analysis (PCA) is a technique that is often used to reduce the numbers of features in a dataset with highly correlated features to a smaller number of principal components which explain most of the variance of the observed variables.
+
+```python
+'''
+    Use PCA to reduce dimensionality and then run logistic regression 
+'''
+# use PCA to reduce dimensionality
+pca = decomposition.PCA()
+
+# use logistic regression to predict target
+logreg = LogisticRegression()
+
+# build pipeline to combine PCA and Logistic Regression
+pipe = Pipeline(steps=[('pca', pca), ('logistic', logreg)])
+
+# n_components for PCA - for gridsearch
+n_components = [100, 140, 160, 180]
+
+# logistic regression - for gridsearch
+Cs = np.logspace(-4, 4, 3)
+
+# parameters for logistic regression and PCA
+params_grid = {
+    'logistic__C': Cs,
+    'pca__n_components': n_components,
+}
+
+# estimator does gridsearch for best n_components and best C value
+estimator = GridSearchCV(estimator=pipe, param_grid=params_grid)
+
+# fit estimator
+estimator.fit(X_train, y_train)
+
+# run estimator on test set and get predictions
+predictions = estimator.predict(X_test)
+```
+
+Classification Report:
+
+| Class   | Precision | Recall | F1-Score |
+| --------|-----------|--------|----------|
+| Ad      |   0.96    |  0.71  |  0.82    |
+| Non-Ad  |   0.95    |  0.99  |  0.97    |
+|avg/total|   0.95    |  0.95  |  0.95    |   
+
+
+Confustion Matrix:
+
+|             | Ad_Predicted |  Non-AD_Predicted |
+|-------------|--------------|-------------------|
+Ad_Actual     |           25 |               10  |
+Non-AD_Actual |            1 |              199  |
+
+## PCA and Logistic Regression Results discussion
+
+While running PCA and Logistic Regression using gridsearch for finding the best parameters took a bit of time, the results are pretty good. Running PCA reduces the dimensinality of the data to 160 features which is not surprising given the exploratory analysis which showed many highly correlated features and features with practically all 0's. 
+
+Using 90% of the data for training and 10% for testing, the model has a score of 95%. 
+The classification report indicates that the model makes errors when it predicts Ads as Non-Ads, which reduces the recall and F1 scores.
+
+Next, I am interested in running Logistic Regression using L1 penalty to reduce the coefficients to zero for feature selection.
+
+### Logistic Regression using L1 penalty
+Regularized Logistic Regression is a technique used for classification problems when there are many features in the data. L1 regularized logistic regression can be used for feature selection because it has the property that it can push feature coefficients to 0. Mathematically, this is due to the L1 norm penalty constraint that it imposes on the function.
+
+When compared to Ridge Regression which used L2 penalty, we can see that graphically from ESL (Hastie, Tibshirani, Friedman):
+![ESL](/images/ESL.png)
+
+```python
+'''
+    Logistic Regression using L1 penalty which automatically does feature selection
+'''
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.10, random_state=2)
+
+params_grid_1 = {'C': Cs,}
+# use L1 penalty
+logreg_L1 = LogisticRegression(penalty='l1')
+# perform grid search for best C value
+estimator_L1 = GridSearchCV(estimator=logreg_L1, param_grid=params_grid_1)
+# train model
+estimator_L1.fit(X_train, y_train)
+# print score on training set
+print estimator_L1.best_params_, estimator_L1.best_score_
+# run L1 Logistic Regression estimator on test set and get predictions
+predictions_L1 = estimator_L1.predict(X_test)
+```
+
+Classification Report:
+
+| Class   | Precision | Recall | F1-Score |
+| --------|-----------|--------|----------|
+| Ad      |   1.00    |  0.88  |  0.93    |
+| Non-Ad  |   0.97    |  1.00  |  0.99    |
+|avg/total|   0.98    |  0.98  |  0.98    |   
+
+
+Confustion Matrix:
+
+|             | Ad_Predicted |  Non-AD_Predicted |
+|-------------|--------------|-------------------|
+Ad_Actual     |     35       |           5       |
+Non-AD_Actual |      0       |          195      |
+
+#### Logistic Regression using L1 penalty Results discussion
+
+The score for logistic regression using L1 penalty is close to 98%, so it is better than that of PCA + Logistic Regression. Also, the above model misses fewer times when predicting an Ad as a Non-Ad, and thus has a higer F1 score. 
+
+The model does feature selection by shrinking coefficients down to 0 for features that dont explain the data well. When looking at the features with highest coefficients sorted in decreasing order, we can see that 'ancurl news' is at the top along with 'alt information'.
+
+Lasty, I want to explore feature importance using a Random Forest Classifier in order to compare features importances and scores.
